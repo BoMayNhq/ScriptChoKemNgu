@@ -77,10 +77,16 @@ local function storeOriginalSizes(char)
     end
 end
 
--- Robust team check: Only show hitbox for enemy players
-local function isEnemy(plr)
-    local function getTeam(player)
-        local status = player:FindFirstChild("Status")
+-- ROBUST TEAM CHECK (matches the Arsenal-style robust check)
+local function isEnemy(player)
+    if player == LocalPlayer then return false end
+    -- Prefer Team property if available
+    if player.Team and LocalPlayer.Team then
+        return player.Team ~= LocalPlayer.Team
+    end
+    -- Fallback: Use Status.Team.Value if found
+    local function getTeam(plr)
+        local status = plr:FindFirstChild("Status")
         if status then
             local team = status:FindFirstChild("Team")
             if team and team.Value then
@@ -90,8 +96,12 @@ local function isEnemy(plr)
         return nil
     end
     local myTeam = getTeam(LocalPlayer)
-    local otherTeam = getTeam(plr)
-    return myTeam and otherTeam and myTeam ~= otherTeam
+    local otherTeam = getTeam(player)
+    if myTeam and otherTeam then
+        return myTeam ~= otherTeam
+    end
+    -- Fallback: treat as enemy if no info
+    return true
 end
 
 local function updateHitbox(player)
@@ -106,7 +116,7 @@ local function updateHitbox(player)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local enemy = isEnemy(player)
 
-    if enabled and player ~= LocalPlayer and enemy then
+    if enabled and enemy then
         -- Only apply hitbox for enemies
         if head then
             head.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
