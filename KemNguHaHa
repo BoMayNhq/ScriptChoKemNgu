@@ -1,0 +1,195 @@
+repeat wait() until game:IsLoaded()
+
+-- SERVICES & BASICS
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local LocalPlayer = Players.LocalPlayer
+
+-- SETTINGS
+local HITBOX_MAX_SIZE = 50
+local HITBOX_MIN_SIZE = 5
+local hitboxSize = 20
+local enabled = false
+
+-- GUI SETUP
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ArsenalPremiumMenu"
+ScreenGui.ResetOnSpawn = false
+pcall(function() ScreenGui.Parent = CoreGui end)
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 250, 0, 180)
+MainFrame.Position = UDim2.new(0, 40, 0, 150)
+MainFrame.BackgroundColor3 = Color3.fromRGB(35,35,35)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+local Title = Instance.new("TextLabel")
+Title.Text = "Arsenal Premium for Kem"
+Title.Font = Enum.Font.SourceSansBold
+Title.TextColor3 = Color3.new(1,1,1)
+Title.TextSize = 20
+Title.Size = UDim2.new(1,0,0,30)
+Title.BackgroundTransparency = 1
+Title.Parent = MainFrame
+
+local Toggle = Instance.new("TextButton")
+Toggle.Text = "Toggle: OFF"
+Toggle.Font = Enum.Font.SourceSans
+Toggle.TextColor3 = Color3.new(1,1,1)
+Toggle.TextSize = 18
+Toggle.Size = UDim2.new(1,-20,0,40)
+Toggle.Position = UDim2.new(0,10,0,40)
+Toggle.BackgroundColor3 = Color3.fromRGB(60,60,60)
+Toggle.Parent = MainFrame
+
+local SizeSlider = Instance.new("TextButton")
+SizeSlider.Text = "Hitbox Size: "..hitboxSize
+SizeSlider.Font = Enum.Font.SourceSans
+SizeSlider.TextColor3 = Color3.new(1,1,1)
+SizeSlider.TextSize = 18
+SizeSlider.Size = UDim2.new(1,-20,0,40)
+SizeSlider.Position = UDim2.new(0,10,0,90)
+SizeSlider.BackgroundColor3 = Color3.fromRGB(60,60,60)
+SizeSlider.Parent = MainFrame
+
+local Watermark = Instance.new("TextLabel")
+Watermark.Text = "by Quan"
+Watermark.Font = Enum.Font.SourceSansItalic
+Watermark.TextColor3 = Color3.fromRGB(255,255,255)
+Watermark.TextSize = 16
+Watermark.Size = UDim2.new(1,0,0,20)
+Watermark.Position = UDim2.new(0,0,1,-20)
+Watermark.BackgroundTransparency = 1
+Watermark.Parent = MainFrame
+
+-- STORE ORIGINAL SIZES
+local originalSizes = {}
+
+local function storeOriginalSizes(char)
+    if not char then return end
+    for _,partName in pairs({"HeadHB","LowerTorso","HumanoidRootPart"}) do
+        local part = char:FindFirstChild(partName)
+        if part then
+            originalSizes[part] = {Size = part.Size, Transparency = part.Transparency}
+        end
+    end
+end
+
+local function isEnemy(plr)
+    -- Arsenal team check (uses Status.Team.Value)
+    local myTeam = LocalPlayer:FindFirstChild("Status") and LocalPlayer.Status:FindFirstChild("Team") and LocalPlayer.Status.Team.Value
+    local otherTeam = plr:FindFirstChild("Status") and plr.Status:FindFirstChild("Team") and plr.Status.Team.Value
+    return myTeam ~= nil and otherTeam ~= nil and myTeam ~= otherTeam
+end
+
+local function updateHitbox(player)
+    if not player or not player.Character then return end
+    local char = player.Character
+    local isEnemyPlayer = isEnemy(player)
+    if not originalSizes[char] then storeOriginalSizes(char) end
+
+    local head = char:FindFirstChild("HeadHB")
+    local torso = char:FindFirstChild("LowerTorso")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+
+    if enabled and player ~= LocalPlayer and isEnemyPlayer then
+        -- Set white hitbox, only visible to you (part transparency)
+        if head then
+            head.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+            head.Transparency = 0.3
+            head.Color = Color3.new(1,1,1)
+        end
+        if torso then
+            torso.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+            torso.Transparency = 0.3
+            torso.Color = Color3.new(1,1,1)
+        end
+        if hrp then
+            hrp.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
+            hrp.Transparency = 0.3
+            hrp.Color = Color3.new(1,1,1)
+        end
+    else
+        -- Restore parts
+        if head and originalSizes[head] then
+            head.Size = originalSizes[head].Size
+            head.Transparency = originalSizes[head].Transparency
+        end
+        if torso and originalSizes[torso] then
+            torso.Size = originalSizes[torso].Size
+            torso.Transparency = originalSizes[torso].Transparency
+        end
+        if hrp and originalSizes[hrp] then
+            hrp.Size = originalSizes[hrp].Size
+            hrp.Transparency = originalSizes[hrp].Transparency
+        end
+    end
+end
+
+local function updateAll()
+    for _,v in ipairs(Players:GetPlayers()) do
+        if v ~= LocalPlayer then
+            updateHitbox(v)
+        end
+    end
+end
+
+-- GUI INTERACTIONS
+Toggle.MouseButton1Click:Connect(function()
+    enabled = not enabled
+    Toggle.Text = enabled and "Toggle: ON" or "Toggle: OFF"
+    updateAll()
+end)
+
+SizeSlider.MouseButton1Click:Connect(function()
+    hitboxSize = hitboxSize + 5
+    if hitboxSize > HITBOX_MAX_SIZE then hitboxSize = HITBOX_MIN_SIZE end
+    SizeSlider.Text = "Hitbox Size: "..tostring(hitboxSize)
+    if enabled then updateAll() end
+end)
+
+-- Player/Character Connections
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(char)
+        storeOriginalSizes(char)
+        wait(1)
+        updateHitbox(player)
+    end)
+end)
+
+for _,v in ipairs(Players:GetPlayers()) do
+    if v.Character then storeOriginalSizes(v.Character) end
+    v.CharacterAdded:Connect(function(char)
+        storeOriginalSizes(char)
+        wait(1)
+        updateHitbox(v)
+    end)
+end
+
+-- Update on team change
+for _,v in ipairs(Players:GetPlayers()) do
+    if v:FindFirstChild("Status") and v.Status:FindFirstChild("Team") then
+        v.Status.Team:GetPropertyChangedSignal("Value"):Connect(function()
+            updateHitbox(v)
+        end)
+    end
+end
+
+-- Update loop (for new players/respawns)
+RunService.RenderStepped:Connect(function()
+    if enabled then
+        for _,v in ipairs(Players:GetPlayers()) do
+            if v ~= LocalPlayer then
+                updateHitbox(v)
+            end
+        end
+    end
+end)
+
+-- Make GUI draggable
+MainFrame.Active = true
+MainFrame.Draggable = true
+
+-- END OF SCRIPT
