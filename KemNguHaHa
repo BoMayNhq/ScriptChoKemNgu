@@ -72,30 +72,42 @@ local function storeOriginalSizes(char)
     for _,partName in pairs({"HeadHB","LowerTorso","HumanoidRootPart"}) do
         local part = char:FindFirstChild(partName)
         if part then
-            originalSizes[part] = {Size = part.Size, Transparency = part.Transparency}
+            originalSizes[part] = {Size = part.Size, Transparency = part.Transparency, Color = part.Color}
         end
     end
 end
 
+-- Robust team check: Only show hitbox for enemy players
 local function isEnemy(plr)
-    -- Arsenal team check (uses Status.Team.Value)
-    local myTeam = LocalPlayer:FindFirstChild("Status") and LocalPlayer.Status:FindFirstChild("Team") and LocalPlayer.Status.Team.Value
-    local otherTeam = plr:FindFirstChild("Status") and plr.Status:FindFirstChild("Team") and plr.Status.Team.Value
-    return myTeam ~= nil and otherTeam ~= nil and myTeam ~= otherTeam
+    local function getTeam(player)
+        local status = player:FindFirstChild("Status")
+        if status then
+            local team = status:FindFirstChild("Team")
+            if team and team.Value then
+                return team.Value
+            end
+        end
+        return nil
+    end
+    local myTeam = getTeam(LocalPlayer)
+    local otherTeam = getTeam(plr)
+    return myTeam and otherTeam and myTeam ~= otherTeam
 end
 
 local function updateHitbox(player)
     if not player or not player.Character then return end
     local char = player.Character
-    local isEnemyPlayer = isEnemy(player)
+
+    -- Store original sizes/colors once per character
     if not originalSizes[char] then storeOriginalSizes(char) end
 
     local head = char:FindFirstChild("HeadHB")
     local torso = char:FindFirstChild("LowerTorso")
     local hrp = char:FindFirstChild("HumanoidRootPart")
+    local enemy = isEnemy(player)
 
-    if enabled and player ~= LocalPlayer and isEnemyPlayer then
-        -- Set white hitbox, only visible to you (part transparency)
+    if enabled and player ~= LocalPlayer and enemy then
+        -- Only apply hitbox for enemies
         if head then
             head.Size = Vector3.new(hitboxSize, hitboxSize, hitboxSize)
             head.Transparency = 0.3
@@ -112,18 +124,21 @@ local function updateHitbox(player)
             hrp.Color = Color3.new(1,1,1)
         end
     else
-        -- Restore parts
+        -- Restore parts for teammates, self, or disabled
         if head and originalSizes[head] then
             head.Size = originalSizes[head].Size
             head.Transparency = originalSizes[head].Transparency
+            head.Color = originalSizes[head].Color
         end
         if torso and originalSizes[torso] then
             torso.Size = originalSizes[torso].Size
             torso.Transparency = originalSizes[torso].Transparency
+            torso.Color = originalSizes[torso].Color
         end
         if hrp and originalSizes[hrp] then
             hrp.Size = originalSizes[hrp].Size
             hrp.Transparency = originalSizes[hrp].Transparency
+            hrp.Color = originalSizes[hrp].Color
         end
     end
 end
@@ -157,6 +172,17 @@ Players.PlayerAdded:Connect(function(player)
         wait(1)
         updateHitbox(player)
     end)
+    -- Listen for team changes for new players
+    player.CharacterAdded:Connect(function(char)
+        wait(1)
+        updateHitbox(player)
+    end)
+    local status = player:FindFirstChild("Status")
+    if status and status:FindFirstChild("Team") then
+        status.Team:GetPropertyChangedSignal("Value"):Connect(function()
+            updateHitbox(player)
+        end)
+    end
 end)
 
 for _,v in ipairs(Players:GetPlayers()) do
@@ -166,12 +192,10 @@ for _,v in ipairs(Players:GetPlayers()) do
         wait(1)
         updateHitbox(v)
     end)
-end
-
--- Update on team change
-for _,v in ipairs(Players:GetPlayers()) do
-    if v:FindFirstChild("Status") and v.Status:FindFirstChild("Team") then
-        v.Status.Team:GetPropertyChangedSignal("Value"):Connect(function()
+    -- Listen for team changes for existing players
+    local status = v:FindFirstChild("Status")
+    if status and status:FindFirstChild("Team") then
+        status.Team:GetPropertyChangedSignal("Value"):Connect(function()
             updateHitbox(v)
         end)
     end
